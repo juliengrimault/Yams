@@ -318,7 +318,8 @@ private extension Parser {
                                      problem: "found undefined alias", event.startMark,
                                      yaml: yaml)
         }
-        return node
+        
+        return .alias(Alias(name: alias, mark: event.startMark, anchor: node))
     }
 
     func loadScalar(from event: Event) throws -> Node {

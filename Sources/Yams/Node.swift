@@ -9,13 +9,15 @@
 import Foundation
 
 /// YAML Node.
-public enum Node: Hashable {
+public indirect enum Node: Hashable {
     /// Scalar node.
     case scalar(Scalar)
     /// Mapping node.
     case mapping(Mapping)
     /// Sequence node.
     case sequence(Sequence)
+    /// Alias node
+    case alias(Alias)
 }
 
 extension Node {
@@ -58,6 +60,7 @@ extension Node {
         case let .scalar(scalar): return scalar.resolvedTag
         case let .mapping(mapping): return mapping.resolvedTag
         case let .sequence(sequence): return sequence.resolvedTag
+        case let .alias(alias): return alias.anchor.tag
         }
     }
 
@@ -67,6 +70,7 @@ extension Node {
         case let .scalar(scalar): return scalar.mark
         case let .mapping(mapping): return mapping.mark
         case let .sequence(sequence): return sequence.mark
+        case let .alias(alias): return alias.mark
         }
     }
 
@@ -145,6 +149,8 @@ extension Node {
             case let .sequence(sequence):
                 guard let index = node.int, sequence.indices ~= index else { return nil }
                 return sequence[index]
+            case let .alias(alias):
+                return alias.anchor[node]
             }
         }
         set {
@@ -158,6 +164,9 @@ extension Node {
                 guard let index = node.int, sequence.indices ~= index else { return}
                 sequence[index] = newValue
                 self = .sequence(sequence)
+            case var .alias(alias):
+                alias.anchor[node] = newValue
+                self = .alias(alias)
             }
         }
     }

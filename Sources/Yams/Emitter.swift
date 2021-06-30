@@ -37,7 +37,8 @@ public func dump<Objects>(
     explicitStart: Bool = false,
     explicitEnd: Bool = false,
     version: (major: Int, minor: Int)? = nil,
-    sortKeys: Bool = false) throws -> String
+    sortKeys: Bool = false,
+    resolveAliases: Bool = true) throws -> String
     where Objects: Sequence {
     func representable(from object: Any) throws -> NodeRepresentable {
         if let representable = object as? NodeRepresentable {
@@ -56,7 +57,8 @@ public func dump<Objects>(
         explicitStart: explicitStart,
         explicitEnd: explicitEnd,
         version: version,
-        sortKeys: sortKeys
+        sortKeys: sortKeys,
+        resolveAliases: resolveAliases
     )
 }
 
@@ -86,7 +88,8 @@ public func dump(
     explicitStart: Bool = false,
     explicitEnd: Bool = false,
     version: (major: Int, minor: Int)? = nil,
-    sortKeys: Bool = false) throws -> String {
+    sortKeys: Bool = false,
+    resolveAliases: Bool = true) throws -> String {
     return try serialize(
         node: object.represented(),
         canonical: canonical,
@@ -97,7 +100,8 @@ public func dump(
         explicitStart: explicitStart,
         explicitEnd: explicitEnd,
         version: version,
-        sortKeys: sortKeys
+        sortKeys: sortKeys,
+        resolveAliases: resolveAliases
     )
 }
 
@@ -127,7 +131,8 @@ public func serialize<Nodes>(
     explicitStart: Bool = false,
     explicitEnd: Bool = false,
     version: (major: Int, minor: Int)? = nil,
-    sortKeys: Bool = false) throws -> String
+    sortKeys: Bool = false,
+    resolveAliases: Bool = true) throws -> String
     where Nodes: Sequence, Nodes.Iterator.Element == Node {
     let emitter = Emitter(
         canonical: canonical,
@@ -138,7 +143,8 @@ public func serialize<Nodes>(
         explicitStart: explicitStart,
         explicitEnd: explicitEnd,
         version: version,
-        sortKeys: sortKeys
+        sortKeys: sortKeys,
+        resolveAliases: resolveAliases
     )
     try emitter.open()
     try nodes.forEach(emitter.serialize)
@@ -172,7 +178,8 @@ public func serialize(
     explicitStart: Bool = false,
     explicitEnd: Bool = false,
     version: (major: Int, minor: Int)? = nil,
-    sortKeys: Bool = false) throws -> String {
+    sortKeys: Bool = false,
+    resolveAliases: Bool = true) throws -> String {
     return try serialize(
         nodes: [node],
         canonical: canonical,
@@ -183,7 +190,8 @@ public func serialize(
         explicitStart: explicitStart,
         explicitEnd: explicitEnd,
         version: version,
-        sortKeys: sortKeys
+        sortKeys: sortKeys,
+        resolveAliases: resolveAliases
     )
 }
 
@@ -224,6 +232,8 @@ public final class Emitter {
 
         /// Set if emitter should sort keys in lexicographic order.
         public var sortKeys: Bool = false
+        
+        public var resolveAliases: Bool = true
     }
 
     /// Configuration options to use when emitting YAML.
@@ -253,7 +263,8 @@ public final class Emitter {
                 explicitStart: Bool = false,
                 explicitEnd: Bool = false,
                 version: (major: Int, minor: Int)? = nil,
-                sortKeys: Bool = false) {
+                sortKeys: Bool = false,
+                resolveAliases: Bool = true) {
         options = Options(canonical: canonical,
                           indent: indent,
                           width: width,
@@ -262,7 +273,8 @@ public final class Emitter {
                           explicitStart: explicitStart,
                           explicitEnd: explicitEnd,
                           version: version,
-                          sortKeys: sortKeys)
+                          sortKeys: sortKeys,
+                          resolveAliases: resolveAliases)
         // configure emitter
         yaml_emitter_initialize(&emitter)
         yaml_emitter_set_output(&self.emitter, { pointer, buffer, size in
@@ -381,7 +393,7 @@ extension Emitter.Options {
     /// - parameter sortKeys:      Set if emitter should sort keys in lexicographic order.
     public init(canonical: Bool = false, indent: Int = 0, width: Int = 0, allowUnicode: Bool = false,
                 lineBreak: Emitter.LineBreak = .ln, version: (major: Int, minor: Int)? = nil,
-                sortKeys: Bool = false) {
+                sortKeys: Bool = false, resolveAliases: Bool = true) {
         self.canonical = canonical
         self.indent = indent
         self.width = width
@@ -389,6 +401,7 @@ extension Emitter.Options {
         self.lineBreak = lineBreak
         self.version = version
         self.sortKeys = sortKeys
+        self.resolveAliases = resolveAliases
     }
 }
 
@@ -406,6 +419,17 @@ extension Emitter {
         case .scalar(let scalar): try serializeScalar(scalar)
         case .sequence(let sequence): try serializeSequence(sequence)
         case .mapping(let mapping): try serializeMapping(mapping)
+        case .alias(let alias):
+            if options.resolveAliases {
+                try serializeNode(alias.anchor)
+            } else {
+                var event = yaml_event_t()
+                var aliasName = alias.name.utf8CString
+                _ = aliasName.withUnsafeMutableBytes { name in
+                    yaml_alias_event_initialize(&event, name.baseAddress?.assumingMemoryBound(to: UInt8.self))
+                }
+                try emit(&event)
+            }
         }
     }
 

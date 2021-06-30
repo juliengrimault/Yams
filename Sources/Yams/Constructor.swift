@@ -54,6 +54,9 @@ public final class Constructor {
                 return result
             }
             return [Any].construct_seq(from: sequence)
+            
+        case .alias(let alias):
+            return any(from: alias.anchor)
         }
     }
 

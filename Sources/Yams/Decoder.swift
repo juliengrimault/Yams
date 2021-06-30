@@ -114,6 +114,9 @@ private struct _Decoder: Decoder {
             throw _typeMismatch(at: codingPath, expectation: Node.Scalar.self, reality: mapping)
         case .sequence(let sequence):
             throw _typeMismatch(at: codingPath, expectation: Node.Scalar.self, reality: sequence)
+        case .alias(let alias):
+            let inner = _Decoder(referencing: alias.anchor, userInfo: userInfo, codingPath: codingPath)
+            return try inner.scalar()
         }
     }
 }
